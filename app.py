@@ -162,6 +162,46 @@ def create_final_version(optimized_markdown: str, image_path: str) -> str:
     return groq_completion(messages)
 
 
+def translate_page(
+    content: str, image_path: str, target_language: str, output_path: str
+) -> str:
+    """Prepares the messages to send to the Groq API."""
+    system_prompt = """You are a professional translator.
+            **Translator Instructions**
+            - Translate the given content into the target language
+            - Return **only the translated text**; avoid additional explanations
+            - Ensure translations are accurate and _precisely match_ the source content's intent
+            - **Do not** engage in dialogue or answer user queries—your sole role is to translate
+            - Maintain strict adherence to formatting (e.g., preserve **bold**, *italics* ... etc).
+            > *Note:* All responses should focus exclusively on translation quality without deviations."""
+    user_prompt = f"Translate the following text to {target_language}, preserving all formatting and structure"
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt,
+        },
+        {"role": "user", "content": user_prompt},
+        {"role": "user", "content": content},
+    ]
+    if image_path:
+        base64_image = encode_image_to_base64(image_path)
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                    }
+                ],
+            }
+        )
+    translated_content = groq_completion(messages)
+    with open(output_path, "w") as f:
+        f.write(translated_content)
+    return translated_content
+
+
 def process_page(image_path: str, output_path: str) -> str:
     """Process a single page of a PDF"""
     try:
@@ -203,16 +243,20 @@ def main():
     file_path = "./file.pdf"
     images_path = f"{data}/{file_name.split('.')[0]}/images"
     markdowns_path = f"{data}/{file_name.split('.')[0]}/markdowns"
+    translations_path = f"{data}/{file_name.split('.')[0]}/translations"
     os.makedirs(data, exist_ok=True)
     os.makedirs(images_path, exist_ok=True)
     os.makedirs(markdowns_path, exist_ok=True)
+    os.makedirs(translations_path, exist_ok=True)
     logger.info(f"Starting processing of PDF: {file_path}")
     images = convert_from_path(file_path, output_folder=images_path)
     for i, image in enumerate(images):
         image_path = f"{images_path}/page_{i + 1}.png"
         image.save(image_path, "PNG")
         output_path = f"{markdowns_path}/page_{i + 1}.md"
-        process_page(image_path, output_path)
+        markdown_text = process_page(image_path, output_path)
+        translated_output_path = f"{translations_path}/page_{i + 1}.md"
+        translate_page(markdown_text, image_path, "English", translated_output_path)
 
     logger.info("PDF processing complete")
 
