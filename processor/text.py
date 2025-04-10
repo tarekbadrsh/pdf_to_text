@@ -3,6 +3,7 @@ import re
 # Package imports
 from constants.patterns import Patterns
 
+
 def format_markdown(text: str) -> str:
     """Format markdown text by removing markdown and code blocks"""
 
